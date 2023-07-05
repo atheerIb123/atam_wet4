@@ -290,7 +290,6 @@ void run_debugger(pid_t child, Elf64_Addr address, bool dynamic){
 
 	int count = 0;
 	struct user_regs_struct regs;
-
 	if(dynamic)
     {
 		unsigned long addr = ptrace(PTRACE_PEEKTEXT, child, (void*)address, NULL);
@@ -299,25 +298,30 @@ void run_debugger(pid_t child, Elf64_Addr address, bool dynamic){
 		long after_plt_trap = (after_plt & 0xFFFFFFFFFFFFFF00) | 0xCC;
 		ptrace(PTRACE_POKETEXT, child, (void*)addr, (void*)after_plt_trap);
 		ptrace(PTRACE_CONT, child, NULL, NULL);
-
+		
 		wait(&wait_status);
 
 
 
         ptrace(PTRACE_GETREGS, child, 0, &regs);
         unsigned long long returnedVal = regs.rax;
+        
         regs.rip-=1;
 		ptrace(PTRACE_SETREGS, child, 0 ,&regs);
 		ptrace(PTRACE_POKETEXT, child, (void*)addr, (void*)after_plt);
 
 		long trap = regs.rsp;
         unsigned long ret_addr = ptrace(PTRACE_PEEKTEXT, child, (void*)trap, NULL);
-
+		
+	
         long after_call = ptrace(PTRACE_PEEKTEXT, child, (void*)ret_addr, NULL);
 		long after_call_trap = (after_call & 0xFFFFFFFFFFFFFF00) | 0xCC;
 
         ptrace(PTRACE_POKETEXT, child, (void*)ret_addr, (void*)after_call_trap);
         ptrace(PTRACE_CONT, child, NULL, NULL);
+		
+		
+		int param = regs.rdi;
 
         wait(&wait_status);
 
@@ -326,11 +330,11 @@ void run_debugger(pid_t child, Elf64_Addr address, bool dynamic){
 		ptrace(PTRACE_SETREGS, child, 0, &regs);
         ptrace(PTRACE_POKETEXT, child, (void*)ret_addr, (void*)after_call);
         count++;
-
+		
+		
         int retV = ptrace(PTRACE_PEEKTEXT, child, (void*)(regs.rax), NULL);
         
         retV = regs.rax;
-        int param = regs.rdi;
         printf("PRF:: run #%d first parameter is %d\n", count, param);
         printf("PRF:: run #%d returned with %d\n", count, retV);
         address = ptrace(PTRACE_PEEKTEXT, child, (void*)address, NULL);
@@ -341,15 +345,17 @@ void run_debugger(pid_t child, Elf64_Addr address, bool dynamic){
 
     ptrace(PTRACE_POKETEXT, child, (void*)address, (void*)first_command_in_function_trap);
     ptrace(PTRACE_CONT, child, NULL, NULL);
+    
     wait(&wait_status);
+
 
 	while(WIFSTOPPED(wait_status))
     {
 		ptrace(PTRACE_GETREGS, child, 0, &regs);
+        int param = regs.rdi;
         regs.rip -= 1;
         ptrace(PTRACE_SETREGS, child, 0, &regs);
         ptrace(PTRACE_POKETEXT, child, (void*)address, (void*)first_command_in_function);
-
         long trap = regs.rsp;
         unsigned long ret_addr = ptrace(PTRACE_PEEKTEXT, child, (void*)trap, NULL);
         long after_call = ptrace(PTRACE_PEEKTEXT, child, (void*)ret_addr, NULL);
@@ -366,7 +372,6 @@ void run_debugger(pid_t child, Elf64_Addr address, bool dynamic){
         ptrace(PTRACE_POKETEXT, child, (void*)ret_addr, (void*)after_call);
 
         count++;
-        int param = regs.rdi;
         printf("PRF:: run #%d first parameter is %d\n", count, param);
         retV = regs.rax;
         
@@ -383,6 +388,7 @@ void run_debugger(pid_t child, Elf64_Addr address, bool dynamic){
         ptrace(PTRACE_POKETEXT, child, (void*)address, (void*)first_command_in_function_trap);
         ptrace(PTRACE_CONT, child, NULL, NULL);
         wait(&wait_status);
+        ptrace(PTRACE_GETREGS, child, 0, &regs);
 	}
 }
 
