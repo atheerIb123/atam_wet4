@@ -143,10 +143,11 @@ Elf64_Addr find_symbol(char* symbol_name, char* exe_file_name, int* error_val) {
         *error_val = -1; // Symbol not found
         return 0;
     }
+	
+    bool flag = false;
 
     if (ELF64_ST_BIND(symbol->st_info) == STB_LOCAL)
     {
-        bool flag = false;
         for(size_t i = sym_index + 1; i < symbolCount; i++) {
             symbol = (void *) symtab + i * symbol_table_header.sh_entsize;
             char *name = strtab + symbol->st_name;
@@ -159,6 +160,7 @@ Elf64_Addr find_symbol(char* symbol_name, char* exe_file_name, int* error_val) {
         if(!flag)
         {
             *error_val = -2; // Symbol is not global
+            return 0;
         }
     }
 
@@ -388,7 +390,6 @@ void run_debugger(pid_t child, Elf64_Addr address, bool dynamic){
         ptrace(PTRACE_POKETEXT, child, (void*)address, (void*)first_command_in_function_trap);
         ptrace(PTRACE_CONT, child, NULL, NULL);
         wait(&wait_status);
-        ptrace(PTRACE_GETREGS, child, 0, &regs);
 	}
 }
 
@@ -406,8 +407,12 @@ int main(int argc, char* argv[])
 	else if(err == -4){
 		dynamic = true;
 	}
-
-    pid_t child_pid = run_target(argv[2], argv);
-	run_debugger(child_pid, addr, dynamic);
+	
+   if(err == -4 || err == 1)
+    {
+        pid_t child_pid = run_target(argv[2], argv);
+        run_debugger(child_pid, addr, dynamic);
+    }
+    
 	return 0;
 }
